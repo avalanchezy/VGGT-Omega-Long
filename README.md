@@ -1,142 +1,121 @@
-<div align="center">
-<h1>VGGT-&Omega;</h1>
+# VGGT-Omega-Long
 
-<a href="http://vggt-omega.github.io/" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Project_Page-green" alt="Project Page"></a>
-<a href="https://arxiv.org/abs/2605.15195" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/arXiv-2605.15195-b31b1b" alt="arXiv"></a>
-<a href="https://huggingface.co/spaces/facebook/vggt-omega"><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Demo-blue'></a>
+VGGT-Omega-Long extends the VGGT-Long long-sequence reconstruction pipeline with
+VGGT-Omega as the local feed-forward 3D backbone.
 
-<p>
-  <span class="author"><a href="https://jytime.github.io/">Jianyuan Wang</a><sup>1,2</sup></span>
-  <span class="author"><a href="https://silent-chen.github.io/">Minghao Chen</a><sup>1</sup></span>
-  <span class="author"><a href="https://scholar.google.com/citations?user=FUDsZkEAAAAJ&amp;hl=zh-CN">Shangzhan Zhang</a><sup>1</sup></span>
-  <span class="author"><a href="https://nikitakaraevv.github.io/">Nikita Karaev</a><sup>1</sup></span>
-  <br>
-  <span class="author"><a href="https://demuc.de/">Johannes Schönberger</a><sup>2</sup></span>
-  <span class="author"><a href="https://scholar.google.com/citations?user=IJidh-UAAAAJ&amp;hl=fr">Patrick Labatut</a><sup>2</sup></span>
-  <span class="author"><a href="https://scholar.google.com/citations?user=lJ_oh2EAAAAJ&amp;hl=en">Piotr Bojanowski</a><sup>2</sup></span>
-  <span class="author"><a href="https://d-novotny.github.io/">David Novotny</a></span>
-  <br>
-  <span class="author"><a href="https://www.robots.ox.ac.uk/~vedaldi/">Andrea Vedaldi</a><sup>1,2</sup></span>
-  <span class="author"><a href="https://chrirupp.github.io/">Christian Rupprecht</a><sup>1</sup></span>
-</p>
+The long-sequence mechanism follows VGGT-Long: images are split into overlapping
+chunks, loop candidates are detected with image retrieval, adjacent and loop
+chunks are aligned by dense point-map Sim(3), and the aligned chunks are fused
+into a global point cloud. The only backbone-specific part is a
+`VGGTOmegaAdapter`, which preserves VGGT-Omega's native preprocessing, 9D camera
+encoding, FoV-derived intrinsics, depth prediction, and depth confidence.
 
-**<sup>1</sup>[Visual Geometry Group, University of Oxford](https://www.robots.ox.ac.uk/~vgg/)**; **<sup>2</sup>[Meta AI](https://ai.facebook.com/research/)**
-</div>
+## What Is Different From VGGT-Long
 
-## Pretrained models
+VGGT predicts point maps directly. VGGT-Omega predicts camera pose encoding,
+depth, and depth confidence. VGGT-Omega-Long converts those outputs into the
+same interface expected by VGGT-Long:
 
-Before using the models, please request access to the checkpoints [here](https://huggingface.co/facebook/VGGT-Omega). Once your request is approved, you can download the checkpoints. Please note that access requests are reviewed by an automated process based on the information provided in the request.
+- `pose_enc` is decoded into camera-from-world extrinsics and intrinsics.
+- depth is unprojected into dense world point maps.
+- `depth_conf` is used as the point-map confidence.
+- camera poses are converted to camera-to-world matrices for trajectory output.
 
-| Model | Resolution | Text alignment | Download |
-| :--- | :--- | :--- | :--- |
-| `VGGT-Omega-1B-512` | 512 | No | [Link](https://huggingface.co/facebook/VGGT-Omega/blob/main/vggt_omega_1b_512.pt) |
-| `VGGT-Omega-1B-256-Text-Alignment` | 256 | Yes | [Link](https://huggingface.co/facebook/VGGT-Omega/blob/main/vggt_omega_1b_256_text.pt) |
+After this adapter layer, retrieval, overlap alignment, loop optimization, and
+point-cloud fusion are the original Long pipeline.
 
-The authors are not involved in the review process and cannot approve or reject individual applications. However, the [🤗 Hugging Face demo](https://huggingface.co/spaces/facebook/vggt-omega) is available to everyone.
+## Installation
 
-
-## Quick Start
-
-First, clone this repository and install the dependencies:
+Create an environment and install PyTorch first. Pick the CUDA wheel matching
+your machine.
 
 ```bash
-git clone git@github.com:facebookresearch/vggt-omega.git
-cd vggt-omega
+conda create -n vggt-omega-long python=3.10 -y
+conda activate vggt-omega-long
+
+pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
-pip install -e .
 ```
 
-
-Now, try the model with a few lines of code:
-
-```python
-import torch
-
-from vggt_omega.models import VGGTOmega
-from vggt_omega.utils.load_fn import load_and_preprocess_images
-from vggt_omega.utils.pose_enc import encoding_to_camera
-
-checkpoint_path = "path/to/vggt_omega_1b_512.pt"
-image_names = ["path/to/imageA.png", "path/to/imageB.png", "path/to/imageC.png"]
-
-model = VGGTOmega().to("cuda").eval()
-model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"))
-
-images = load_and_preprocess_images(image_names, image_resolution=512).to("cuda")
-
-with torch.inference_mode():
-    predictions = model(images)
-
-extrinsics, intrinsics = encoding_to_camera(
-    predictions["pose_enc"],
-    predictions["images"].shape[-2:],
-)
-
-depth = predictions["depth"]
-depth_conf = predictions["depth_conf"]
-camera_and_register_tokens = predictions["camera_and_register_tokens"]
-camera_tokens = camera_and_register_tokens[:, :, :1]
-registers = camera_and_register_tokens[:, :, 1:]
-```
-
-For the text-aligned checkpoint, use `VGGTOmega(enable_alignment=True)` with `image_resolution=256` and read `predictions["text_alignment_embedding"]`.
-
-
-## Interactive Demo
-
-Install the demo dependencies:
+The optional C++ Sim3 solver can be compiled with:
 
 ```bash
-pip install -r requirements_demo.txt
+python setup.py install
 ```
 
-Launch the Gradio demo with a local checkpoint path:
+If it is not compiled, the Python Sim3 implementation is used automatically.
+
+## Weights
+
+VGGT-Omega checkpoints are hosted on Hugging Face and may require access approval
+from the original model page. After access is available, run:
 
 ```bash
-python demo_gradio.py \
-  --checkpoint checkpoints/VGGT-Omega-1B-512/model.pt \
-  --image-resolution 512
+bash scripts/download_weights.sh
 ```
 
-The demo accepts uploaded images or a video, runs camera and depth inference,
-and visualizes the depth-unprojected point cloud and predicted cameras as a GLB
-scene.
+This downloads:
 
-## Runtime and GPU Memory
+- `weights/vggt_omega_1b_512.pt`
+- `weights/dino_salad.ckpt`
+- `weights/dinov2_vitb14_pretrain.pth`
+- `weights/ORBvoc.txt`
 
-We benchmark the end-to-end peak GPU memory usage of `VGGT-Omega-1B-512` on a
-single NVIDIA A100 GPU with 624x416 input images. The measurement covers the full
-inference program, from loading the model weights onto the GPU through the
-forward pass, so it includes both the memory needed to store the model itself
-and the memory used by inference activations and buffers. In other words, a GPU
-with at least the listed available memory is able to run the corresponding
-number of input frames under this setup.
+You can also place `vggt_omega_1b_512.pt` manually under `weights/`.
 
-| **Input Frames** | 1 | 10 | 25 | 50 | 100 | 200 | 300 | 400 | 500 |
-|:----------------:|:-:|:--:|:--:|:--:|:---:|:---:|:---:|:---:|:---:|
-| **Peak Memory (GB)** | 6.02 | 6.67 | 7.80 | 9.66 | 13.37 | 20.82 | 28.26 | 35.71 | 43.15 |
+## Run
 
-The benchmark uses [`load_and_preprocess_images`](./vggt_omega/utils/load_fn.py)
-with the default `mode="balanced"` and `image_resolution=512`. For these roughly
-3:2 landscape images, this produces 624x416 inputs. You can set
-`mode="max_size"` to resize the longest side to 512 instead; for the same aspect
-ratio, this gives about 512x336 inputs and uses less GPU memory.
+Prepare a directory of ordered RGB images:
+
+```bash
+python vggt_omega_long.py --image_dir /path/to/images --config configs/vggt_omega.yaml
+```
+
+The legacy entry point is also kept:
+
+```bash
+python vggt_long.py --image_dir /path/to/images --config configs/vggt_omega.yaml
+```
+
+Useful config fields in `configs/vggt_omega.yaml`:
+
+```yaml
+Model:
+  chunk_size: 60
+  overlap: 30
+  loop_enable: True
+  omega_image_resolution: 512
+  omega_preprocess_mode: 'max_size'
+```
+
+For videos, extract frames first:
+
+```bash
+mkdir -p frames
+ffmpeg -i input.mp4 -vf "fps=2" frames/frame_%06d.jpg
+```
+
+## Outputs
+
+Each run creates an experiment directory under `exps/` containing:
+
+- `pcd/combined_pcd.ply`: fused global point cloud.
+- `camera_poses.txt`: estimated camera-to-world poses.
+- `camera_poses.ply`: camera trajectory visualization.
+- temporary aligned/unaligned chunks, unless `delete_temp_files: True`.
+
+## Notes
+
+- VGGT-Omega-Long is most comparable to VGGT-Long when using the same
+  `chunk_size`, `overlap`, and loop settings.
+- `omega_preprocess_mode: max_size` is memory-friendlier; `balanced` follows
+  VGGT-Omega's default token-budget behavior.
+- Because Omega produces depth rather than direct point maps, this repository
+  intentionally keeps the depth-unprojection step inside the adapter instead of
+  changing the Long alignment code.
 
 ## License
 
-See the [LICENSE](./LICENSE) file for details about the license under which
-this code is made available.
-
-[^release]: This Release is intended to support the open source research community.
-
-```bibtex
-@misc{wang2026vggtomega,
-      title={VGGT-$\Omega$}, 
-      author={Jianyuan Wang and Minghao Chen and Shangzhan Zhang and Nikita Karaev and Johannes Schönberger and Patrick Labatut and Piotr Bojanowski and David Novotny and Andrea Vedaldi and Christian Rupprecht},
-      year={2026},
-      eprint={2605.15195},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2605.15195}, 
-}
-```
+This repository combines the VGGT-Long pipeline with VGGT-Omega model code.
+See `LICENSE` / `LICENSE_VGGT_OMEGA` for the VGGT-Omega license and
+`LICENSE.txt` for the inherited VGGT-Long license.

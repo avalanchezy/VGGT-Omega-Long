@@ -1,0 +1,18 @@
+inherit_from: "configs/base_config.yaml"
+
+Weights:
+  model: 'VGGT-Omega'
+  VGGTOmega: './weights/vggt_omega_1b_512.pt'
+
+Model:
+  chunk_size: 60
+  overlap: 30
+  loop_chunk_size: 20
+  loop_enable: True
+  useDBoW: False
+  delete_temp_files: True
+  using_sim3: True
+  omega_image_resolution: 512
+  omega_preprocess_mode: 'max_size'
+  omega_patch_size: 16
+  omega_strict_load: True

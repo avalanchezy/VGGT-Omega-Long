@@ -1,7 +1,23 @@
-torch>=2.3
-torchvision>=0.18
-numpy<2
+numpy==1.26.1
 Pillow
+huggingface_hub
 einops
 safetensors
 opencv-python
+matplotlib
+trimesh
+scipy
+
+numba==0.61.2
+
+onnxruntime
+pyparsing
+importlib_metadata
+
+xformers == 0.0.28.post3
+faiss-gpu
+pandas
+prettytable
+pytorch-lightning
+pytorch-metric-learning
+torchmetrics
