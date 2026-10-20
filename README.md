@@ -114,6 +114,18 @@ Each run creates an experiment directory under `exps/` containing:
   intentionally keeps the depth-unprojection step inside the adapter instead of
   changing the Long alignment code.
 
+## Citation
+
+```bibtex
+@inproceedings{zhu2026mappanod,
+title={MapPano3D: Map-Guided Large-Scale Urban Reconstruction from Panoramic Videos},
+author={Yi Zhu and Kiyoharu Aizawa and Sebastien Valette and Satoshi Ikehata},
+booktitle={Eighteenth Asian Conference on Computer Vision},
+year={2026},
+url={https://openreview.net/forum?id=3CrSfvMi5B}
+}
+```
+
 ## License
 
 This repository combines the VGGT-Long pipeline with VGGT-Omega model code.
